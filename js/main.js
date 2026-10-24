@@ -503,6 +503,36 @@ class GameEngine {
     const right = p.right;
     const speedRatio = Math.min(1.0, Math.abs(p.speedKmh) / 320);
 
+    // In-car views (cockpit, hood, bumper) are bolted to the car body. They used to follow on the
+    // same spring as the chase cam, which left them trailing 1-2 m behind their mount at speed:
+    // inside the nose, the bonnet or behind the driver's head.
+    // eye: mount point in car-body space (x left/right, y up, z forward); pitch: look-down angle (rad)
+    const IN_CAR_MOUNTS = {
+      1: { eye: [-0.32, 0.90, -0.22], pitch: -0.02, fov: 64, fovGain: 8 },  // driver's eye line
+      2: { eye: [0.0, 0.96, 1.0], pitch: -0.05, fov: 66, fovGain: 10 },     // above the bonnet, ahead of the windscreen
+      3: { eye: [0.0, 0.22, 2.36], pitch: -0.01, fov: 72, fovGain: 12 }     // just ahead of the splitter
+    };
+    const mount = IN_CAR_MOUNTS[this.cameraMode];
+    if (mount) {
+      // Follow the body's pitch (brake dive, squat) but keep the horizon level
+      const body = this.playerCar.chassisGroup;
+      this.playerCar.group.updateMatrixWorld(true);
+      const [ex, ey, ez] = mount.eye;
+      const eye = body.localToWorld(new THREE.Vector3(ex, ey, ez));
+      const look = body.localToWorld(new THREE.Vector3(ex, ey + Math.tan(mount.pitch) * 30, ez + 30));
+
+      this.camera.fov = mount.fov + speedRatio * mount.fovGain + (p.isNosActive ? 4 : 0);
+      this.camera.updateProjectionMatrix();
+      this.camera.position.copy(eye);
+      this.camera.up.set(0, 1, 0);
+      this.camera.lookAt(look);
+
+      // Keep the spring state in sync so switching back to an orbiting camera doesn't jump
+      this.cameraCurrentPos.copy(eye);
+      this.cameraCurrentLook.copy(look);
+      return;
+    }
+
     // Compute base camera position depending on mode
     let offset = new THREE.Vector3();
     let lookOffset = new THREE.Vector3();
@@ -518,27 +548,6 @@ class GameEngine {
         fov = 65 + speedRatio * 16;
         if (p.isNosActive) fov += 8;
         smoothSpeed = 14.0;
-        break;
-
-      case 1: // Cockpit Cam (Inside driver's seat)
-        offset = forward.clone().multiplyScalar(-0.25).add(up.clone().multiplyScalar(0.78)).add(right.clone().multiplyScalar(-0.32));
-        lookOffset = forward.clone().multiplyScalar(18.0).add(up.clone().multiplyScalar(0.72));
-        fov = 75 + speedRatio * 10;
-        smoothSpeed = 26.0;
-        break;
-
-      case 2: // Hood / Bonnet Cam
-        offset = forward.clone().multiplyScalar(1.1).add(up.clone().multiplyScalar(0.68));
-        lookOffset = forward.clone().multiplyScalar(22.0).add(up.clone().multiplyScalar(0.55));
-        fov = 72 + speedRatio * 12;
-        smoothSpeed = 22.0;
-        break;
-
-      case 3: // Bumper Cam
-        offset = forward.clone().multiplyScalar(2.1).add(up.clone().multiplyScalar(0.25));
-        lookOffset = forward.clone().multiplyScalar(24.0).add(up.clone().multiplyScalar(0.22));
-        fov = 80 + speedRatio * 14;
-        smoothSpeed = 28.0;
         break;
 
       case 4: // Drone Cam (High cinematic orbit)

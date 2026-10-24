@@ -294,20 +294,21 @@ class CarModel {
     cabinMesh.castShadow = true;
     this.chassisGroup.add(cabinMesh);
 
-    // Carbon Fiber Roof Strip & Scoop
-    const roofGeo = new THREE.BoxGeometry(1.0, 0.08, 1.35);
+    // Carbon Fiber Roof Strip & Scoop. The front edge (windscreen header) sits just above and ahead
+    // of the driver's head so it stays out of the cockpit camera's view.
+    const roofGeo = new THREE.BoxGeometry(1.0, 0.08, 0.9);
     const roofMesh = new THREE.Mesh(roofGeo, this.materials.carbonFiber);
-    roofMesh.position.set(0, 1.05, -0.22);
+    roofMesh.position.set(0, 1.05, -0.5);
     roofMesh.castShadow = true;
     this.chassisGroup.add(roofMesh);
 
-    // A-Pillars and C-Pillars
-    const pillarGeo = new THREE.BoxGeometry(0.08, 0.46, 0.08);
+    // A-Pillars, raked from the scuttle (z 0.65, y 0.62) back to the roof header (z -0.05, y 1.03)
+    const pillarGeo = new THREE.BoxGeometry(0.06, 0.81, 0.06);
     const pillarFL = new THREE.Mesh(pillarGeo, this.materials.carbonFiber);
-    pillarFL.position.set(-0.62, 0.82, 0.65);
-    pillarFL.rotation.x = -0.45;
+    pillarFL.position.set(-0.6, 0.825, 0.3);
+    pillarFL.rotation.x = -1.04;
     const pillarFR = pillarFL.clone();
-    pillarFR.position.x = 0.62;
+    pillarFR.position.x = 0.6;
     this.chassisGroup.add(pillarFL, pillarFR);
 
     // Side Mirrors with Reflective Glass
@@ -329,18 +330,18 @@ class CarModel {
   }
 
   buildInterior() {
-    // Dark dashboard console
-    const dashGeo = new THREE.BoxGeometry(1.15, 0.22, 0.45);
+    // Low dark dashboard (top at y 0.72, well below the cockpit camera's eye line at 0.86)
+    const dashGeo = new THREE.BoxGeometry(1.15, 0.12, 0.42);
     const dashMesh = new THREE.Mesh(dashGeo, this.materials.interior);
-    dashMesh.position.set(0, 0.68, 0.42);
+    dashMesh.position.set(0, 0.66, 0.43);
     this.chassisGroup.add(dashMesh);
 
-    // Digital Instrument Cluster glowing screen
-    const screenGeo = new THREE.PlaneGeometry(0.32, 0.12);
+    // Digital Instrument Cluster glowing screen, angled up toward the driver
+    const screenGeo = new THREE.PlaneGeometry(0.26, 0.09);
     const screenMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
     const screenMesh = new THREE.Mesh(screenGeo, screenMat);
-    screenMesh.position.set(-0.32, 0.76, 0.34);
-    screenMesh.rotation.x = -0.3;
+    screenMesh.position.set(-0.32, 0.745, 0.3);
+    screenMesh.rotation.x = -0.6;
     screenMesh.rotation.y = Math.PI;
     this.chassisGroup.add(screenMesh);
 
@@ -351,7 +352,7 @@ class CarModel {
     const centerGeo = new THREE.BoxGeometry(0.1, 0.06, 0.02);
     const centerMesh = new THREE.Mesh(centerGeo, this.materials.interior);
     wheelGroup.add(rimMesh, centerMesh);
-    wheelGroup.position.set(-0.32, 0.74, 0.22);
+    wheelGroup.position.set(-0.32, 0.64, 0.12); // rim top sits below the driver's sight line
     wheelGroup.rotation.x = 0.35;
     this.steeringWheel = wheelGroup;
     this.chassisGroup.add(wheelGroup);

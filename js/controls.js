@@ -9,6 +9,11 @@ const TILT_STEER_FULL_LOCK = 28.0;
 const TILT_PEDAL_DEADZONE = 4.0;
 const TILT_THROTTLE_FULL = 20.0;
 const TILT_BRAKE_FULL = 16.0;
+// Steering response curve: 0 = linear, 1 = fully cubic. Softens small tilts around centre
+// (hand tremor, tiny corrections) while big tilts still reach full lock at the same angle.
+const TILT_STEER_EXPO = 0.55;
+// Sensor smoothing per reading (lower = smoother, slightly more lag)
+const TILT_FILTER = 0.15;
 
 class InputManager {
   constructor() {
@@ -131,8 +136,8 @@ class InputManager {
       if (!this.tiltGravity) {
         this.tiltGravity = { x: sx, y: sy, z: sz };
       } else {
-        // Low-pass filter: smooths hand shake and engine-free jitter while staying responsive
-        const k = 0.25;
+        // Low-pass filter: smooths hand shake and sensor jitter while staying responsive
+        const k = TILT_FILTER;
         this.tiltGravity.x += (sx - this.tiltGravity.x) * k;
         this.tiltGravity.y += (sy - this.tiltGravity.y) * k;
         this.tiltGravity.z += (sz - this.tiltGravity.z) * k;
@@ -196,7 +201,9 @@ class InputManager {
     if (dPitch > 180) dPitch -= 360;
     if (dPitch < -180) dPitch += 360;
 
-    this.tiltSteer = shape(roll - this.tiltZero.roll, TILT_STEER_DEADZONE, TILT_STEER_FULL_LOCK) * (this.tiltInvert ? -1 : 1);
+    const steerLinear = shape(roll - this.tiltZero.roll, TILT_STEER_DEADZONE, TILT_STEER_FULL_LOCK);
+    const steerCurved = steerLinear * (1 - TILT_STEER_EXPO) + Math.pow(steerLinear, 3) * TILT_STEER_EXPO;
+    this.tiltSteer = steerCurved * (this.tiltInvert ? -1 : 1);
     if (this.controlMode === 'tilt-full') {
       this.tiltThrottle = Math.max(0, shape(dPitch, TILT_PEDAL_DEADZONE, TILT_THROTTLE_FULL));
       this.tiltBrake = Math.max(0, -shape(dPitch, TILT_PEDAL_DEADZONE, TILT_BRAKE_FULL));
