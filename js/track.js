@@ -58,6 +58,7 @@ class RaceTrack {
     this.waypoints = [];
     this.streetlightSpots = [];
     this.streetlightLamps = [];
+    this.tunnelLights = [];
 
     if (trackId === 'canyon') {
       this.trackName = "Akina Canyon Touge";
@@ -238,7 +239,9 @@ class RaceTrack {
 
         const point = new THREE.PointLight(0xffaa44, 2.5, 30);
         point.position.copy(lightMesh.position).sub(up.clone().multiplyScalar(0.8));
+        point.visible = !this.lowPowerLighting;
         this.group.add(point);
+        this.tunnelLights.push(point);
       }
     }
   }
@@ -1217,10 +1220,18 @@ class RaceTrack {
     }
   }
 
+  // Phones: hide the real light sources (each one adds per-pixel cost to every surface);
+  // the lamp and tunnel light meshes keep glowing so the scene still reads as lit
+  setLowPowerLighting(enabled) {
+    this.lowPowerLighting = enabled;
+    this.tunnelLights.forEach(l => { l.visible = !enabled; });
+    this.streetlightSpots.forEach(s => { s.visible = !enabled && s.intensity > 0; });
+  }
+
   setStreetlightsActive(active, intensity = 2.5) {
     if (this.streetlightSpots) {
       this.streetlightSpots.forEach(s => {
-        s.visible = active;
+        s.visible = active && !this.lowPowerLighting;
         s.intensity = active ? intensity : 0.0;
       });
     }

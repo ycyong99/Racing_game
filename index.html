@@ -2,10 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Antigravity Apex - High-Fidelity Supercar Racing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Apex Racer - High-Fidelity Supercar Racing</title>
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
+  <!-- Installable app (Chrome "Install app") -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0a0e18">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <script>
     window.addEventListener('error', function(e) {
       console.error("Game Runtime Error:", e.error || e.message);
@@ -75,6 +80,14 @@
       </div>
 
       <div class="top-actions">
+        <button class="hud-btn highlight" id="btn-install-app" title="Install Apex Racer as an app" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3v12"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <path d="M5 21h14"></path>
+          </svg>
+          <span>INSTALL APP</span>
+        </button>
         <button class="hud-btn highlight" id="btn-open-track-modal" title="Change Track & Time (T)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
@@ -401,6 +414,40 @@
             <button class="btn-option btn-quality selected" data-quality="ultra">Ultra</button>
             <button class="btn-option btn-quality" data-quality="high">High</button>
             <button class="btn-option btn-quality" data-quality="medium">Medium</button>
+            <button class="btn-option btn-quality" data-quality="mobile">Mobile</button>
+          </div>
+        </div>
+
+        <!-- Phone Controls (touch devices) -->
+        <div class="setting-group mobile-only" style="grid-column: 1 / -1;">
+          <div class="setting-label">Phone Controls</div>
+          <div class="setting-btn-group">
+            <button class="btn-option btn-control-mode" data-mode="tilt">Tilt Steer + Pedals</button>
+            <button class="btn-option btn-control-mode" data-mode="tilt-full">Full Tilt</button>
+            <button class="btn-option btn-control-mode" data-mode="buttons">Buttons Only</button>
+          </div>
+          <div class="tilt-hint">
+            Hold the phone like a steering wheel and rotate it to steer.
+            In <strong>Full Tilt</strong>, tip the top edge away from you to accelerate and towards you to brake.
+            The game re-centres at the start of every race.
+          </div>
+          <div class="tilt-status" id="tilt-status">Tilt sensor: checking…</div>
+          <div class="tilt-meter">
+            <span class="tilt-meter-label">STEER</span>
+            <div class="tilt-meter-track"><div class="tilt-meter-fill" id="tilt-meter-steer"></div></div>
+            <span class="tilt-meter-label">BRAKE / GAS</span>
+            <div class="tilt-meter-track"><div class="tilt-meter-fill pedal" id="tilt-meter-pedal"></div></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 10px;">
+            <div class="setting-label">Tilt Sensitivity</div>
+            <span class="slider-val-badge" id="val-tilt-sens">100%</span>
+          </div>
+          <div class="slider-container">
+            <input type="range" min="50" max="200" step="10" value="100" class="setting-slider" id="slider-tilt-sens">
+          </div>
+          <div class="setting-btn-group" style="margin-top: 6px;">
+            <button class="btn-option" id="btn-tilt-calibrate">Re-centre Tilt</button>
+            <button class="btn-option" id="btn-tilt-invert">Invert Steering: Off</button>
           </div>
         </div>
 
@@ -483,14 +530,25 @@
     </div>
   </div>
 
-  <!-- Libraries: Three.js and Postprocessing Passes -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js" crossorigin="anonymous"></script>
+  <!-- Portrait warning (phones): the game is played sideways -->
+  <div id="rotate-overlay">
+    <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#00ffcc" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+      <path d="M21 12a9 9 0 0 1-3 6.7"></path>
+      <polyline points="21 17 18 18.7 17.5 15.6"></polyline>
+    </svg>
+    <div class="rotate-title">TURN YOUR PHONE SIDEWAYS</div>
+    <div class="rotate-sub">Apex Racer is played in landscape, held like a steering wheel.</div>
+  </div>
+
+  <!-- Libraries: Three.js r128 and Postprocessing Passes (bundled locally so the installed app works offline) -->
+  <script src="vendor/three/three.min.js"></script>
+  <script src="vendor/three/CopyShader.js"></script>
+  <script src="vendor/three/LuminosityHighPassShader.js"></script>
+  <script src="vendor/three/EffectComposer.js"></script>
+  <script src="vendor/three/RenderPass.js"></script>
+  <script src="vendor/three/ShaderPass.js"></script>
+  <script src="vendor/three/UnrealBloomPass.js"></script>
 
   <!-- Game Scripts -->
   <script src="js/audio.js"></script>
@@ -503,6 +561,17 @@
   <script src="js/postprocessing.js"></script>
   <script src="js/hud.js"></script>
   <script src="js/main.js"></script>
+
+  <!-- Offline support for the installed app (needs https:// or localhost) -->
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').catch(function(err) {
+          console.warn('Service worker registration failed:', err);
+        });
+      });
+    }
+  </script>
 
 </body>
 </html>

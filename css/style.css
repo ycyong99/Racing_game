@@ -1158,3 +1158,263 @@ html, body {
   font-size: 10px;
   color: rgba(255, 255, 255, 0.65);
 }
+
+/* ==========================================================================
+   Phone / Installed App (Android)
+   ========================================================================== */
+
+/* No pull-to-refresh, double-tap zoom or text selection while racing */
+html, body {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+/* Keep the HUD and buttons clear of camera cut-outs and rounded corners */
+#hud {
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+           max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+}
+
+/* Phone-only settings */
+.mobile-only {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .mobile-only {
+    display: block;
+  }
+  /* Keyboard hints mean nothing on a phone */
+  .controls-hint {
+    display: none;
+  }
+  .modal-card {
+    touch-action: pan-y;
+  }
+}
+
+/* Touch controls follow the chosen phone control mode once the tilt sensor is reporting */
+body.tilt-ready.control-tilt .touch-left,
+body.tilt-ready.control-tilt-full .touch-left {
+  display: none;
+}
+body.tilt-ready.control-tilt-full .touch-pedal {
+  display: none;
+}
+
+.touch-left {
+  left: max(30px, env(safe-area-inset-left));
+  bottom: max(30px, env(safe-area-inset-bottom));
+}
+
+.touch-right {
+  right: max(30px, env(safe-area-inset-right));
+  bottom: max(30px, env(safe-area-inset-bottom));
+}
+
+/* Tilt settings */
+.tilt-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 8px;
+}
+
+.tilt-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #00ffcc;
+  margin-top: 8px;
+}
+
+.tilt-meter {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.tilt-meter-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tilt-meter-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.tilt-meter-track::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.tilt-meter-fill {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 100%;
+  background: #00ffcc;
+}
+
+.tilt-meter-fill.pedal {
+  background: linear-gradient(90deg, #ff4466, #44ff99);
+}
+
+/* Portrait warning */
+#rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: #0a0e18;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  padding: 32px;
+  text-align: center;
+}
+
+@media (pointer: coarse) and (orientation: portrait) {
+  #rotate-overlay {
+    display: flex;
+  }
+}
+
+.rotate-title {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #ffffff;
+}
+
+.rotate-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* Compact HUD for phones held sideways (short screens) */
+@media (max-height: 500px) {
+  #hud {
+    padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+             max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  }
+  .hud-panel {
+    padding: 6px 12px;
+    border-radius: 10px;
+  }
+  .position-number {
+    font-size: 26px;
+  }
+  .position-total {
+    font-size: 12px;
+  }
+  .position-label {
+    font-size: 9px;
+  }
+  .lap-panel {
+    gap: 14px;
+  }
+  .stat-label {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .stat-val {
+    font-size: 14px;
+  }
+  .top-actions {
+    gap: 6px;
+  }
+  .hud-btn {
+    padding: 8px;
+    font-size: 11px;
+  }
+  /* Icons only, except the install button */
+  .hud-btn span {
+    display: none;
+  }
+  #btn-install-app span {
+    display: inline;
+  }
+  .hud-center {
+    top: 18%;
+  }
+  .modal-card {
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  /* Mini-map moves up the left edge, clear of the steering buttons */
+  .minimap-container {
+    position: absolute;
+    width: 96px;
+    height: 96px;
+    left: max(14px, env(safe-area-inset-left));
+    top: 76px;
+  }
+  /* Compact speedometer centred between the left and right touch controls */
+  .hud-bottom {
+    justify-content: center;
+  }
+  .gauge-box {
+    padding: 4px 12px 6px;
+    border-radius: 12px;
+  }
+  .tachometer-wrapper,
+  .tachometer-svg {
+    width: 140px;
+    height: 76px;
+  }
+  .gear-display {
+    font-size: 15px;
+  }
+  .speed-display {
+    font-size: 28px;
+  }
+  .speed-unit {
+    font-size: 8px;
+    margin-top: 1px;
+  }
+  .nos-container {
+    margin-top: 4px;
+  }
+  .nos-label-row {
+    display: none;
+  }
+  .nos-track {
+    height: 5px;
+  }
+  .touch-btn {
+    width: 54px;
+    height: 54px;
+    font-size: 18px;
+  }
+  .touch-btn[style*="font-size:12px"] {
+    font-size: 9px !important;
+  }
+  .touch-pedal {
+    width: 54px;
+    height: 86px;
+    font-size: 10px;
+  }
+  .touch-left,
+  .touch-right {
+    bottom: max(14px, env(safe-area-inset-bottom));
+    gap: 10px;
+  }
+}

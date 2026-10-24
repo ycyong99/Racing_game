@@ -147,6 +147,7 @@ class GameEngine {
     this.bindEvents();
     this.initSavedRecords();
     this.syncCompetitorUI();
+    this.applySavedGraphicsQuality();
 
     // 9. Position Camera Initially
     this.cameraCurrentPos.copy(this.playerPhysics.position).add(new THREE.Vector3(0, 5, -12));
@@ -200,6 +201,9 @@ class GameEngine {
 
   startCountdown() {
     if (window.Sound) window.Sound.resume();
+    // Phone tilt: however the player is holding the phone at the start becomes "straight, no pedal"
+    if (window.Input) window.Input.calibrateTilt();
+    this.requestWakeLock();
     this.raceState.status = 'COUNTDOWN';
     this.raceState.countdownTimer = 3.2;
     this.raceState.currentLap = 1;
@@ -377,6 +381,107 @@ class GameEngine {
     this.playerPhysics.reset(start.position.clone().add(new THREE.Vector3(0, 0.52, 0)), start.angle);
   }
 
+  bindPhoneControls() {
+    const input = window.Input;
+    const modeBtns = document.querySelectorAll('.btn-control-mode');
+    const sensSlider = document.getElementById('slider-tilt-sens');
+    const sensBadge = document.getElementById('val-tilt-sens');
+    const btnInvert = document.getElementById('btn-tilt-invert');
+    const btnCalibrate = document.getElementById('btn-tilt-calibrate');
+
+    this.syncPhoneControlsUI = () => {
+      modeBtns.forEach(b => b.classList.toggle('selected', b.getAttribute('data-mode') === input.controlMode));
+      const pct = Math.round(input.tiltSensitivity * 100);
+      if (sensSlider) sensSlider.value = pct;
+      if (sensBadge) sensBadge.innerText = `${pct}%`;
+      if (btnInvert) {
+        btnInvert.textContent = `Invert Steering: ${input.tiltInvert ? 'On' : 'Off'}`;
+        btnInvert.classList.toggle('selected', input.tiltInvert);
+      }
+    };
+
+    modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        input.setControlMode(btn.getAttribute('data-mode'));
+        this.syncPhoneControlsUI();
+        const names = { tilt: 'TILT STEER + PEDALS', 'tilt-full': 'FULL TILT', buttons: 'BUTTONS ONLY' };
+        if (this.hud) this.hud.showToast(`CONTROLS: ${names[input.controlMode]}`);
+      });
+    });
+    if (sensSlider) {
+      sensSlider.addEventListener('input', (e) => {
+        input.setTiltSensitivity(parseFloat(e.target.value) / 100);
+        this.syncPhoneControlsUI();
+      });
+    }
+    if (btnInvert) {
+      btnInvert.addEventListener('click', () => {
+        input.setTiltInvert(!input.tiltInvert);
+        this.syncPhoneControlsUI();
+      });
+    }
+    if (btnCalibrate) {
+      btnCalibrate.addEventListener('click', () => {
+        const ok = input.calibrateTilt();
+        if (this.hud) this.hud.showToast(ok ? 'TILT RE-CENTRED' : 'TILT SENSOR NOT DETECTED');
+      });
+    }
+    this.syncPhoneControlsUI();
+  }
+
+  // Live tilt read-out in Settings so players can check the sensor and tune sensitivity
+  updateTiltMeter() {
+    const settingsModal = document.getElementById('settings-modal');
+    if (!settingsModal || !settingsModal.classList.contains('active')) return;
+    const input = window.Input;
+    const status = document.getElementById('tilt-status');
+    if (status) {
+      status.textContent = !input.tiltAvailable
+        ? 'Tilt sensor: not detected (needs a phone and an https:// address)'
+        : (input.controlMode === 'buttons' ? 'Tilt sensor: ready (off in Buttons Only mode)' : 'Tilt sensor: active');
+    }
+    const setBar = (id, value) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const v = Math.max(-1, Math.min(1, value));
+      el.style.left = v < 0 ? `${50 + v * 50}%` : '50%';
+      el.style.width = `${Math.abs(v) * 50}%`;
+    };
+    setBar('tilt-meter-steer', input.tiltSteer);
+    setBar('tilt-meter-pedal', input.tiltThrottle - input.tiltBrake);
+  }
+
+  // Chrome offers to install the game as an app; surface that as an in-game button
+  bindInstallPrompt() {
+    const btn = document.getElementById('btn-install-app');
+    if (!btn) return;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      this.deferredInstallPrompt = e;
+      btn.style.display = '';
+    });
+    btn.addEventListener('click', () => {
+      const prompt = this.deferredInstallPrompt;
+      if (!prompt) return;
+      prompt.prompt();
+      prompt.userChoice.finally(() => {
+        this.deferredInstallPrompt = null;
+        btn.style.display = 'none';
+      });
+    });
+    window.addEventListener('appinstalled', () => {
+      btn.style.display = 'none';
+      if (this.hud) this.hud.showToast('APEX RACER INSTALLED');
+    });
+  }
+
+  // Keep the phone screen on during races (no touches happen when steering by tilt)
+  requestWakeLock() {
+    if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+    if (this.wakeLock && !this.wakeLock.released) return;
+    navigator.wakeLock.request('screen').then(lock => { this.wakeLock = lock; }).catch(() => {});
+  }
+
   isRaceSelectOpen() {
     const trackModal = document.getElementById('race-select-modal');
     return !!(trackModal && trackModal.classList.contains('active'));
@@ -543,6 +648,14 @@ class GameEngine {
     const btnRestart = document.getElementById('btn-restart');
     if (btnRestart) btnRestart.addEventListener('click', () => this.restartRace());
 
+    // The screen wake lock is dropped whenever the app is hidden; take it again on return
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') this.requestWakeLock();
+    });
+
+    this.bindPhoneControls();
+    this.bindInstallPrompt();
+
     // Weather Preset selector buttons
     const weatherBtns = document.querySelectorAll('.btn-weather');
     weatherBtns.forEach(btn => {
@@ -700,6 +813,7 @@ class GameEngine {
 
     // 2. Build new track
     this.track = new RaceTrack({ scene: this.scene, trackId: trackId });
+    this.track.setLowPowerLighting(this.graphicsQuality === 'mobile');
 
     // 3. Update player physics and reset to new start line
     this.playerPhysics.track = this.track;
@@ -843,9 +957,31 @@ class GameEngine {
     }
   }
 
-  setGraphicsQuality(q) {
+  // Restore the saved quality; phones default to the lightweight 'mobile' level
+  applySavedGraphicsQuality() {
+    const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    let q = isTouch ? 'mobile' : 'ultra';
+    try {
+      const saved = localStorage.getItem('apex_graphics_quality');
+      if (['ultra', 'high', 'medium', 'mobile'].includes(saved)) q = saved;
+    } catch (e) {}
+    this.setGraphicsQuality(q, false);
+  }
+
+  // persist: false when applying a default, so a device's own default isn't locked in
+  setGraphicsQuality(q, persist = true) {
     this.graphicsQuality = q;
-    if (q === 'ultra') {
+    if (persist) {
+      try { localStorage.setItem('apex_graphics_quality', q); } catch (e) {}
+    }
+    document.querySelectorAll('.btn-quality').forEach(b => b.classList.toggle('selected', b.getAttribute('data-quality') === q));
+    // Mobile drops the dozens of streetlight/tunnel lights (lamps still glow) along with shadows and bloom
+    if (this.track && this.track.setLowPowerLighting) this.track.setLowPowerLighting(q === 'mobile');
+    if (q === 'mobile') {
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+      this.renderer.shadowMap.enabled = false;
+      if (this.postprocessing) this.postprocessing.isEnabled = false;
+    } else if (q === 'ultra') {
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
       this.renderer.shadowMap.enabled = true;
       if (this.postprocessing) this.postprocessing.isEnabled = true;
@@ -898,8 +1034,9 @@ class GameEngine {
     this.updateRaceProgress(dt);
 
     // Allow instant launch if player hits gas/brake or starts steering
+    // (pedals/keys only: tipping the phone in full-tilt mode must not jump the start)
     if (this.raceState.status === 'COUNTDOWN' && !this.isRaceSelectOpen() &&
-        (window.Input.throttle > 0 || window.Input.brake > 0)) {
+        (window.Input.manualThrottle > 0 || window.Input.manualBrake > 0)) {
       this.raceState.status = 'RACING';
       const overlay = document.getElementById('countdown-overlay');
       if (overlay) overlay.style.display = 'none';
@@ -957,6 +1094,7 @@ class GameEngine {
     if (this.hud) {
       this.hud.update(this.playerPhysics, this.raceState, this.aiManager);
     }
+    this.updateTiltMeter();
 
     // 10. Render Scene
     if (this.postprocessing) {

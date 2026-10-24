@@ -1,7 +1,14 @@
 /**
  * Antigravity Apex - Input & Controls Manager
- * Seamless Keyboard, Gamepad (Xbox/PlayStation), and Touch controls.
+ * Seamless Keyboard, Gamepad (Xbox/PlayStation), Touch, and phone Tilt (accelerometer) controls.
  */
+
+// Tilt tuning (degrees). Sensitivity divides the full-lock / full-pedal angles.
+const TILT_STEER_DEADZONE = 2.0;
+const TILT_STEER_FULL_LOCK = 28.0;
+const TILT_PEDAL_DEADZONE = 4.0;
+const TILT_THROTTLE_FULL = 20.0;
+const TILT_BRAKE_FULL = 16.0;
 
 class InputManager {
   constructor() {
@@ -31,9 +38,169 @@ class InputManager {
     // Gamepad
     this.gamepadIndex = null;
 
+    // Phone tilt controls
+    // controlMode: 'buttons' (on-screen buttons only), 'tilt' (tilt to steer + on-screen pedals),
+    //              'tilt-full' (tilt to steer, tip forward/back for gas/brake)
+    this.controlMode = 'buttons';
+    this.tiltSensitivity = 1.0;
+    this.tiltInvert = false;
+    this.tiltAvailable = false;
+    this.tiltGravity = null;          // low-pass filtered gravity in screen axes (x right, y up, z out of screen)
+    this.tiltZero = null;             // neutral { roll, pitch } captured by calibrateTilt()
+    this.tiltCalibratePending = true;
+    this.tiltSteer = 0;
+    this.tiltThrottle = 0;
+    this.tiltBrake = 0;
+    this.manualThrottle = 0;          // throttle/brake from keys, pedals and gamepad only (no tilt)
+    this.manualBrake = 0;
+
     this.initKeyboard();
     this.initGamepad();
     this.initTouch();
+    this.loadTiltSettings();
+    this.initTilt();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phone tilt (accelerometer)
+  // ---------------------------------------------------------------------------
+
+  loadTiltSettings() {
+    const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    let mode = isTouch ? 'tilt' : 'buttons';
+    try {
+      const savedMode = localStorage.getItem('apex_control_mode');
+      if (['buttons', 'tilt', 'tilt-full'].includes(savedMode)) mode = savedMode;
+      const savedSens = parseFloat(localStorage.getItem('apex_tilt_sens'));
+      if (savedSens >= 0.5 && savedSens <= 2.0) this.tiltSensitivity = savedSens;
+      this.tiltInvert = localStorage.getItem('apex_tilt_invert') === 'true';
+    } catch (e) {}
+    this.setControlMode(mode, false);
+  }
+
+  // persist: false when applying a default, so a device's own default isn't locked in
+  setControlMode(mode, persist = true) {
+    this.controlMode = mode;
+    if (persist) {
+      try { localStorage.setItem('apex_control_mode', mode); } catch (e) {}
+    }
+    const body = document.body;
+    if (!body) return;
+    body.classList.toggle('control-buttons', mode === 'buttons');
+    body.classList.toggle('control-tilt', mode === 'tilt');
+    body.classList.toggle('control-tilt-full', mode === 'tilt-full');
+    if (mode !== 'buttons') this.tiltCalibratePending = true;
+  }
+
+  setTiltSensitivity(value) {
+    this.tiltSensitivity = Math.max(0.5, Math.min(2.0, value));
+    try { localStorage.setItem('apex_tilt_sens', this.tiltSensitivity.toString()); } catch (e) {}
+  }
+
+  setTiltInvert(invert) {
+    this.tiltInvert = !!invert;
+    try { localStorage.setItem('apex_tilt_invert', this.tiltInvert ? 'true' : 'false'); } catch (e) {}
+  }
+
+  isTiltActive() {
+    return this.controlMode !== 'buttons' && this.tiltAvailable;
+  }
+
+  // Current screen rotation in degrees (0 portrait, 90 / 270 landscape)
+  screenAngle() {
+    if (screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
+    if (typeof window.orientation === 'number') return window.orientation;
+    return 0;
+  }
+
+  initTilt() {
+    if (!('DeviceMotionEvent' in window)) return;
+    window.addEventListener('devicemotion', (e) => {
+      // accelerationIncludingGravity points "up" in device axes when the phone is still
+      const g = e.accelerationIncludingGravity;
+      if (!g || g.x === null || g.y === null || g.z === null) return;
+
+      // Device axes (portrait) -> screen axes for the current rotation, so holding the phone
+      // either way round in landscape steers the same way
+      const a = this.screenAngle() * Math.PI / 180;
+      const c = Math.cos(a), s = Math.sin(a);
+      const sx = g.x * c - g.y * s;
+      const sy = g.x * s + g.y * c;
+      const sz = g.z;
+
+      if (!this.tiltGravity) {
+        this.tiltGravity = { x: sx, y: sy, z: sz };
+      } else {
+        // Low-pass filter: smooths hand shake and engine-free jitter while staying responsive
+        const k = 0.25;
+        this.tiltGravity.x += (sx - this.tiltGravity.x) * k;
+        this.tiltGravity.y += (sy - this.tiltGravity.y) * k;
+        this.tiltGravity.z += (sz - this.tiltGravity.z) * k;
+      }
+
+      if (!this.tiltAvailable) {
+        this.tiltAvailable = true;
+        if (document.body) document.body.classList.add('tilt-ready');
+      }
+      if (this.tiltCalibratePending) this.calibrateTilt();
+    });
+
+    // A rotation flip changes the axes; re-zero against the new hold
+    const recalibrate = () => { this.tiltCalibratePending = true; };
+    if (screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener('change', recalibrate);
+    } else {
+      window.addEventListener('orientationchange', recalibrate);
+    }
+  }
+
+  // roll: wheel-style rotation of the screen (+ = turned right)
+  // pitch: how far the screen is tipped back from vertical (+ = top edge away from the player)
+  tiltAngles() {
+    const g = this.tiltGravity;
+    const mag = Math.hypot(g.x, g.y, g.z) || 1;
+    const deg = 180 / Math.PI;
+    return {
+      roll: Math.asin(Math.max(-1, Math.min(1, -g.x / mag))) * deg,
+      pitch: Math.atan2(g.z, g.y) * deg
+    };
+  }
+
+  // Treat the way the phone is held right now as "straight ahead, no pedal"
+  calibrateTilt() {
+    if (!this.tiltGravity) {
+      this.tiltCalibratePending = true;
+      return false;
+    }
+    this.tiltZero = this.tiltAngles();
+    this.tiltCalibratePending = false;
+    return true;
+  }
+
+  updateTilt() {
+    this.tiltSteer = 0;
+    this.tiltThrottle = 0;
+    this.tiltBrake = 0;
+    if (!this.isTiltActive() || !this.tiltZero) return;
+
+    const { roll, pitch } = this.tiltAngles();
+    const sens = this.tiltSensitivity;
+    const shape = (delta, dead, full) => {
+      const mag = Math.abs(delta);
+      if (mag <= dead) return 0;
+      return Math.sign(delta) * Math.min(1, (mag - dead) / Math.max(1, full / sens - dead));
+    };
+
+    // Wrap so a hold near +/-180 degrees can't flip sign
+    let dPitch = pitch - this.tiltZero.pitch;
+    if (dPitch > 180) dPitch -= 360;
+    if (dPitch < -180) dPitch += 360;
+
+    this.tiltSteer = shape(roll - this.tiltZero.roll, TILT_STEER_DEADZONE, TILT_STEER_FULL_LOCK) * (this.tiltInvert ? -1 : 1);
+    if (this.controlMode === 'tilt-full') {
+      this.tiltThrottle = Math.max(0, shape(dPitch, TILT_PEDAL_DEADZONE, TILT_THROTTLE_FULL));
+      this.tiltBrake = Math.max(0, -shape(dPitch, TILT_PEDAL_DEADZONE, TILT_BRAKE_FULL));
+    }
   }
 
   initKeyboard() {
@@ -222,6 +389,16 @@ class InputManager {
       this.brake = Math.max(kBrake, tBrake);
       this.handbrake = kHandbrake || tHandbrake;
       this.nos = kNos || tNos;
+    }
+    this.manualThrottle = this.throttle;
+    this.manualBrake = this.brake;
+
+    // 4. Phone tilt: steers whenever no button/key/stick is steering; in full-tilt mode also drives the pedals
+    this.updateTilt();
+    if (this.isTiltActive()) {
+      if (this.steering === 0) this.steering = this.tiltSteer;
+      this.throttle = Math.max(this.throttle, this.tiltThrottle);
+      this.brake = Math.max(this.brake, this.tiltBrake);
     }
   }
 

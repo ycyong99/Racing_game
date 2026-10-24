@@ -29,13 +29,39 @@ You can host and play this game live on GitHub Pages with zero server setup:
 
 ---
 
+## 📱 Apex Racer on Android (Install from Chrome)
+
+The game installs as an app straight from Chrome, with no app store and no separate build:
+
+1. On your Android phone, open **https://ycyong99.github.io/Racing_game/** in **Chrome**.
+2. Tap **Install app**, either the banner, the in-game **INSTALL APP** button, or Chrome's **⋮** menu → *Install app*.
+3. **Apex Racer** appears in your app drawer. It opens full screen, locked to landscape, and works offline.
+
+Updates are automatic: after a new version is pushed to GitHub, the app picks it up the next time it is opened.
+
+### Tilt Controls
+Hold the phone sideways like a steering wheel. Choose a mode in **SETUP → Phone Controls**:
+
+| Mode | Steering | Gas / Brake |
+| :--- | :--- | :--- |
+| **Tilt Steer + Pedals** *(default)* | Rotate the phone like a wheel | On-screen GAS / BRAKE pedals |
+| **Full Tilt** | Rotate the phone like a wheel | Tip the top edge away to accelerate, towards you to brake |
+| **Buttons Only** | ◀ / ▶ buttons | On-screen pedals |
+
+* The game re-centres the tilt at the start of every race. Hold the phone the way you want to drive when the lights come on. **Re-centre Tilt** does it on demand.
+* **Tilt Sensitivity** (50%–200%) and **Invert Steering** are in the same panel, with live STEER and BRAKE / GAS meters to check the sensor.
+* Graphics default to the **Mobile** level on phones (no shadows, bloom or real-time streetlights). Try **Medium** or **High** on fast phones.
+* Tilt needs the game served over `https://` (GitHub Pages is). It won't work from a downloaded `index.html` file.
+
+---
+
 ## 🎮 Driving Controls (Arrow Keys & Automatic Reverse)
 
 | Input Action | Keyboard Key | Gamepad (Xbox / PS) | Touch / Mobile |
 | :--- | :--- | :--- | :--- |
-| **Forward / Accelerate** | <kbd>↑</kbd> (Up Arrow) / <kbd>W</kbd> | <kbd>RT</kbd> / <kbd>R2</kbd> or <kbd>A</kbd> | GAS Pedal |
-| **Reverse / Brake (Auto)** | <kbd>↓</kbd> (Down Arrow) / <kbd>S</kbd> | <kbd>LT</kbd> / <kbd>L2</kbd> | BRAKE Pedal |
-| **Steering (Left / Right)**| <kbd>←</kbd> / <kbd>→</kbd> (Left / Right) / <kbd>A</kbd> / <kbd>D</kbd> | Left Analog Thumbstick | ◀ / ▶ Buttons |
+| **Forward / Accelerate** | <kbd>↑</kbd> (Up Arrow) / <kbd>W</kbd> | <kbd>RT</kbd> / <kbd>R2</kbd> or <kbd>A</kbd> | GAS Pedal, or tip forward (Full Tilt) |
+| **Reverse / Brake (Auto)** | <kbd>↓</kbd> (Down Arrow) / <kbd>S</kbd> | <kbd>LT</kbd> / <kbd>L2</kbd> | BRAKE Pedal, or tip back (Full Tilt) |
+| **Steering (Left / Right)**| <kbd>←</kbd> / <kbd>→</kbd> (Left / Right) / <kbd>A</kbd> / <kbd>D</kbd> | Left Analog Thumbstick | Tilt like a wheel, or ◀ / ▶ Buttons |
 | **Steering Sensitivity** | <kbd>[</kbd> (Softer) / <kbd>]</kbd> (Sharper) | - | Settings Slider / Presets |
 | **Circuit & Time Menu** | <kbd>T</kbd> | - | Top CIRCUIT & TIME Button |
 | **Drift / Handbrake** | <kbd>SPACE</kbd> | <kbd>A</kbd> / <kbd>Cross</kbd> | HANDBRAKE Button |
@@ -117,14 +143,18 @@ Toggle lighting and atmospheric conditions at any time (<kbd>T</kbd> key):
 ```
 Racing_game/
 ├── index.html            # Main HTML5 container, HUD telemetry, modals
+├── manifest.webmanifest  # Android app identity: name, icons, landscape, full screen
+├── sw.js                 # Service worker: offline play & automatic updates for the installed app
 ├── launch.bat            # One-click Windows batch launcher
 ├── README.md             # Project documentation & GitHub guide
 ├── css/
-│   └── style.css         # Glassmorphism UI, speedometer, mini-map & responsive design
+│   └── style.css         # Glassmorphism UI, speedometer, mini-map & responsive/phone layout
+├── icons/                # App icon (icon.svg source + 192/512/maskable PNGs)
+├── vendor/three/         # Three.js r128 + postprocessing passes, bundled for offline play
 └── js/
     ├── main.js           # Game loop orchestrator, race state machine, camera director
     ├── audio.js          # Procedural Web Audio API engine & FX synthesizer
-    ├── controls.js       # Keyboard, Gamepad (Xbox/PS), & Touch input manager
+    ├── controls.js       # Keyboard, Gamepad (Xbox/PS), Touch & phone Tilt input manager
     ├── physics.js        # Vehicle physics engine, suspension roll, Pacejka drift friction
     ├── car.js            # PBR hypercar 3D model generator, materials & active aero
     ├── track.js          # Procedural 3D circuits (Alpine, Canyon, Tokyo Expressway)
@@ -139,4 +169,4 @@ Racing_game/
 ## 🛠️ Compatibility
 * **Browsers**: Google Chrome (Recommended), Brave, Microsoft Edge, Mozilla Firefox, Apple Safari.
 * **Graphics API**: WebGL 2.0 supported GPU.
-* **Devices**: Desktop, Laptop, Tablet, Mobile (Touch controls included), Gamepads.
+* **Devices**: Desktop, Laptop, Tablet, Android phones (installable app with tilt controls), Gamepads.
