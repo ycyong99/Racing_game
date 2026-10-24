@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Antigravity Apex - High-Fidelity Supercar Racing</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error("Game Runtime Error:", e.error || e.message);
+      // Suppress opaque non-fatal cross-origin errors (e.g. browser extensions/adblockers)
+      if (e.message === "Script error." && !e.filename && !e.lineno) {
+        return;
+      }
+      var errDiv = document.getElementById('debug-error-banner');
+      if (!errDiv) {
+        errDiv = document.createElement('div');
+        errDiv.id = 'debug-error-banner';
+        errDiv.style.position = 'fixed';
+        errDiv.style.top = '12px';
+        errDiv.style.left = '50%';
+        errDiv.style.transform = 'translateX(-50%)';
+        errDiv.style.zIndex = '999999';
+        errDiv.style.background = 'rgba(230, 20, 50, 0.95)';
+        errDiv.style.color = '#ffffff';
+        errDiv.style.padding = '10px 20px';
+        errDiv.style.borderRadius = '8px';
+        errDiv.style.fontFamily = 'monospace';
+        errDiv.style.fontSize = '12px';
+        errDiv.style.fontWeight = 'bold';
+        errDiv.style.boxShadow = '0 8px 32px rgba(0,0,0,0.8)';
+        errDiv.style.cursor = 'pointer';
+        errDiv.title = 'Click to dismiss';
+        errDiv.onclick = function() { errDiv.remove(); };
+        document.body.appendChild(errDiv);
+      }
+      errDiv.innerText = "Error in " + (e.filename ? e.filename.split('/').pop() : 'script') + " line " + e.lineno + ": " + (e.message || e.error);
+    });
+  </script>
+</head>
+<body>
+
+  <!-- WebGL Render Canvas -->
+  <div id="canvas-container">
+    <canvas id="game-canvas"></canvas>
+  </div>
+
+  <!-- Rain on Camera Lens Overlay (Active during rainy weather) -->
+  <div id="rain-lens-overlay"></div>
+
+  <!-- Main Game Telemetry HUD -->
+  <div id="hud">
+    <!-- Top HUD Bar: Standings & Lap Times -->
+    <div class="hud-top">
+      <div class="hud-panel position-badge">
+        <span class="position-number" id="hud-pos-num">1</span>
+        <span class="position-total" id="hud-pos-total">/ 8</span>
+        <div class="position-label">POS</div>
+      </div>
+
+      <div class="hud-panel lap-panel">
+        <div class="stat-item">
+          <div class="stat-label">CURRENT LAP</div>
+          <div class="stat-val highlight" id="hud-lap-current">LAP 1 / 3</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">TIME</div>
+          <div class="stat-val" id="hud-lap-time">00:00.00</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">BEST LAP</div>
+          <div class="stat-val best" id="hud-lap-best">--:--.--</div>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button class="hud-btn highlight" id="btn-open-track-modal" title="Change Track & Time (T)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>CIRCUIT & TIME (T)</span>
+        </button>
+        <button class="hud-btn" id="btn-audio-mute" title="Mute / Unmute Audio (M)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path id="audio-icon-waves" d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <span id="btn-audio-text">AUDIO (M)</span>
+        </button>
+        <button class="hud-btn" id="btn-cam" title="Toggle Camera (C)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          <span>CAM (C)</span>
+        </button>
+        <button class="hud-btn" id="btn-settings" title="Settings (ESC / TAB)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>SETUP</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Center HUD Alerts & Drift Multipliers -->
+    <div class="hud-center">
+      <div class="drift-badge" id="hud-drift-badge">
+        <div class="drift-title">DRIFT COMBO</div>
+        <div>
+          <span class="drift-score" id="hud-drift-score">0</span>
+          <span class="drift-mult" id="hud-drift-mult">x1</span>
+        </div>
+      </div>
+      <div class="notification-banner" id="hud-notification">
+        NOTIFICATION
+      </div>
+    </div>
+
+    <!-- Bottom HUD Bar: Mini-Map, Controls Hint, Supercar Telemetry -->
+    <div class="hud-bottom">
+      <!-- GPS Mini-Map -->
+      <div class="minimap-container">
+        <canvas id="minimap-canvas" width="200" height="200"></canvas>
+      </div>
+
+      <!-- Controls Hint -->
+      <div class="controls-hint">
+        <div><span class="key-badge">&#9650;</span> Forward</div>
+        <div><span class="key-badge">&#9660;</span> Reverse / Brake</div>
+        <div><span class="key-badge">&#9664; &#9654;</span> Steer</div>
+        <div><span class="key-badge">SPACE</span> Drift</div>
+        <div><span class="key-badge">SHIFT</span> Nitro</div>
+        <div><span class="key-badge">T</span> Circuit / Time</div>
+        <div><span class="key-badge">[ ]</span> Sens</div>
+        <div><span class="key-badge">R</span> Reset Track</div>
+      </div>
+
+      <!-- Supercar Telemetry Cluster -->
+      <div class="telemetry-cluster">
+        <div class="gauge-box">
+          <!-- Arc Tachometer -->
+          <div class="tachometer-wrapper">
+            <svg class="tachometer-svg" viewBox="0 0 220 120">
+              <defs>
+                <linearGradient id="tachoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#00ffcc" />
+                  <stop offset="70%" stop-color="#ffaa00" />
+                  <stop offset="90%" stop-color="#ff2a4b" />
+                </linearGradient>
+              </defs>
+              <!-- Base track -->
+              <path class="tacho-bg" d="M 20 105 A 90 90 0 0 1 200 105" />
+              <!-- Redline highlight zone -->
+              <path class="tacho-redline" d="M 20 105 A 90 90 0 0 1 200 105" />
+              <!-- Active fill arc -->
+              <path class="tacho-fill" id="tacho-fill" d="M 20 105 A 90 90 0 0 1 200 105" />
+            </svg>
+
+            <!-- Center Speed & Gear -->
+            <div class="speed-gear-info">
+              <div class="gear-display" id="hud-gear">1</div>
+              <div class="speed-display" id="hud-speed">0</div>
+              <div class="speed-unit" id="hud-unit">KM/H</div>
+            </div>
+          </div>
+
+          <!-- Nitrous Energy Gauge -->
+          <div class="nos-container">
+            <div class="nos-label-row">
+              <span>NITROUS OXIDE</span>
+              <span>N2O</span>
+            </div>
+            <div class="nos-track">
+              <div class="nos-bar" id="hud-nos-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Race Start Countdown Overlay -->
+  <div id="countdown-overlay">
+    <div class="countdown-lights">
+      <div class="light-pod" id="pod-1"></div>
+      <div class="light-pod" id="pod-2"></div>
+      <div class="light-pod" id="pod-3"></div>
+    </div>
+    <div class="countdown-text" id="countdown-text">READY</div>
+  </div>
+
+  <!-- Track & Time Selection Modal (3 Tracks & Noon/Dusk/Night) -->
+  <div class="modal-backdrop" id="race-select-modal">
+    <div class="modal-card race-select-card">
+      <div class="modal-header">
+        <h2 class="modal-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00ffcc" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polygon points="12 8 8 12 12 16 16 12 12 8"></polygon>
+          </svg>
+          CIRCUIT & RACE CONDITIONS
+        </h2>
+        <button class="modal-close-btn" id="btn-close-track-modal">&times;</button>
+      </div>
+
+      <!-- 1. Track Choice (3 World-Class Tracks) -->
+      <div class="selection-section">
+        <div class="section-heading">
+          <span class="step-num">1</span> CHOOSE RACE TRACK (1 OF 3)
+        </div>
+        <div class="track-grid">
+          <!-- Track 1: Alpine Apex GP -->
+          <div class="track-card selected" data-track="alpine">
+            <div class="track-card-top">
+              <span class="track-badge">GRAND PRIX</span>
+              <span class="track-length">2.5 KM</span>
+            </div>
+            <div class="track-name">🏔️ Alpine Apex GP</div>
+            <div class="track-desc">Grand Prix circuit featuring high-speed straights, sweeping banked turns, mountain crest elevation, and illuminated tunnel.</div>
+            <div class="track-features">
+              <span>Elevation: 36m</span>
+              <span>21 Waypoints</span>
+              <span>Alpine Forest</span>
+            </div>
+          </div>
+
+          <!-- Track 2: Akina Canyon Touge -->
+          <div class="track-card" data-track="canyon">
+            <div class="track-card-top">
+              <span class="track-badge canyon">DRIFT TOUGE</span>
+              <span class="track-length">2.8 KM</span>
+            </div>
+            <div class="track-name">🏜️ Akina Canyon Touge</div>
+            <div class="track-desc">Technical touge pass carving through sandstone canyon walls, rapid downhill S-curves, and cliffside hairpins.</div>
+            <div class="track-features">
+              <span>Elevation: 48m</span>
+              <span>25 Waypoints</span>
+              <span>Red Rock Mesa</span>
+            </div>
+          </div>
+
+          <!-- Track 3: Neo Tokyo Expressway -->
+          <div class="track-card" data-track="city">
+            <div class="track-card-top">
+              <span class="track-badge city">URBAN SPEEDWAY</span>
+              <span class="track-length">3.2 KM</span>
+            </div>
+            <div class="track-name">🌃 Neo Tokyo Expressway</div>
+            <div class="track-desc">High-speed urban highway viaduct featuring a 700m flat-out straight, massive suspension bridge, and glowing skyscrapers.</div>
+            <div class="track-features">
+              <span>Elevation: 24m</span>
+              <span>22 Waypoints</span>
+              <span>Tokyo Skyline</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Time of Race Choice (Noon, Dusk, Night) -->
+      <div class="selection-section">
+        <div class="section-heading">
+          <span class="step-num">2</span> CHOOSE TIME OF RACE (NOON / DUSK / NIGHT)
+        </div>
+        <div class="time-grid">
+          <!-- Noon -->
+          <div class="time-card selected" data-time="noon">
+            <div class="time-icon">☀️</div>
+            <div class="time-name">NOON</div>
+            <div class="time-time">12:00 PM MIDDAY</div>
+            <div class="time-desc">Brilliant overhead midday sun, crisp shadows, and crystal-clear long-distance visibility.</div>
+          </div>
+
+          <!-- Dusk -->
+          <div class="time-card" data-time="dusk">
+            <div class="time-icon">🌅</div>
+            <div class="time-name">DUSK</div>
+            <div class="time-time">07:30 PM SUNSET</div>
+            <div class="time-desc">Golden hour sunset, burning amber-orange horizon, and dramatic cinematic long shadows.</div>
+          </div>
+
+          <!-- Night -->
+          <div class="time-card" data-time="night">
+            <div class="time-icon">🌙</div>
+            <div class="time-name">NIGHT</div>
+            <div class="time-time">11:45 PM MIDNIGHT</div>
+            <div class="time-desc">Midnight darkness illuminated by car matrix LED headlights, neon billboards, and highway streetlamps.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Competitor Racers / Grid Size -->
+      <div class="selection-section">
+        <div class="section-heading">
+          <span class="step-num">3</span> CHOOSE COMPETITOR RACERS
+        </div>
+        <div class="grid-size-btn-group">
+          <button class="grid-size-card" data-rivals="3">
+            <span class="grid-size-num">4 CARS</span>
+            <span class="grid-size-sub">3 Competitors</span>
+          </button>
+          <button class="grid-size-card" data-rivals="5">
+            <span class="grid-size-num">6 CARS</span>
+            <span class="grid-size-sub">5 Competitors</span>
+          </button>
+          <button class="grid-size-card selected" data-rivals="7">
+            <span class="grid-size-num">8 CARS</span>
+            <span class="grid-size-sub">7 Competitors (Full Grid)</span>
+          </button>
+          <button class="grid-size-card" data-rivals="9">
+            <span class="grid-size-num">10 CARS</span>
+            <span class="grid-size-sub">9 Competitors (Grand Prix)</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="justify-content: space-between; align-items: center;">
+        <div style="font-size: 12px; color: rgba(255,255,255,0.6);">Press <kbd style="background:rgba(255,255,255,0.15); padding:2px 6px; border-radius:3px;">T</kbd> at any time to re-open</div>
+        <button class="action-btn primary pulse-btn" id="btn-start-selected-race">START RACE &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-Game Settings Modal -->
+  <div class="modal-backdrop" id="settings-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00ffcc" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          RACE SETTINGS
+        </h2>
+        <button class="modal-close-btn" id="btn-close-settings">&times;</button>
+      </div>
+
+      <div class="settings-grid">
+        <!-- Track Choice -->
+        <div class="setting-group" style="grid-column: 1 / -1;">
+          <div class="setting-label">Race Track Circuit</div>
+          <div class="setting-btn-group">
+            <button class="btn-option btn-track-opt selected" data-track="alpine">🏔️ Alpine GP (2.5k)</button>
+            <button class="btn-option btn-track-opt" data-track="canyon">🏜️ Akina Canyon (2.8k)</button>
+            <button class="btn-option btn-track-opt" data-track="city">🌃 Neo Tokyo (3.2k)</button>
+          </div>
+        </div>
+
+        <!-- Time of Race -->
+        <div class="setting-group" style="grid-column: 1 / -1;">
+          <div class="setting-label">Time of Race</div>
+          <div class="setting-btn-group">
+            <button class="btn-option btn-time-opt selected" data-time="noon">☀️ Noon</button>
+            <button class="btn-option btn-time-opt" data-time="dusk">🌅 Dusk</button>
+            <button class="btn-option btn-time-opt" data-time="night">🌙 Night</button>
+            <button class="btn-option btn-time-opt" data-time="rain">🌧️ Rain</button>
+            <button class="btn-option btn-time-opt" data-time="cyber">⚡ Cyber</button>
+          </div>
+        </div>
+
+        <!-- Competitor Rivals Grid Size -->
+        <div class="setting-group" style="grid-column: 1 / -1;">
+          <div class="setting-label">Competitor Grid Size</div>
+          <div class="setting-btn-group">
+            <button class="btn-option btn-rivals-opt" data-rivals="3">4 Cars (3 Rivals)</button>
+            <button class="btn-option btn-rivals-opt" data-rivals="5">6 Cars (5 Rivals)</button>
+            <button class="btn-option btn-rivals-opt selected" data-rivals="7">8 Cars (7 Rivals - GP)</button>
+            <button class="btn-option btn-rivals-opt" data-rivals="9">10 Cars (9 Rivals - Full)</button>
+          </div>
+        </div>
+
+        <!-- Speed Unit -->
+        <div class="setting-group">
+          <div class="setting-label">Speedometer Unit</div>
+          <div class="setting-btn-group">
+            <button class="btn-option btn-unit selected" data-unit="kmh">KM/H</button>
+            <button class="btn-option btn-unit" data-unit="mph">MPH</button>
+          </div>
+        </div>
+
+        <!-- Car Paint -->
+        <div class="setting-group">
+          <div class="setting-label">Hypercar Paint Finish</div>
+          <div class="paint-swatches">
+            <div class="paint-swatch selected" data-color="d40b1e" style="background:#d40b1e;" title="Rosso Corsa"></div>
+            <div class="paint-swatch" data-color="0b0c10" style="background:#15161b;" title="Midnight Onyx"></div>
+            <div class="paint-swatch" data-color="00f0ff" style="background:#00f0ff;" title="Electric Cyan"></div>
+            <div class="paint-swatch" data-color="ffd000" style="background:#ffd000;" title="Apex Yellow"></div>
+            <div class="paint-swatch" data-color="39ff14" style="background:#39ff14;" title="Acid Lime"></div>
+            <div class="paint-swatch" data-color="f0f4f8" style="background:#f0f4f8;" title="Pearl White"></div>
+          </div>
+        </div>
+
+        <!-- Graphics Quality -->
+        <div class="setting-group">
+          <div class="setting-label">Graphics Fidelity</div>
+          <div class="setting-btn-group">
+            <button class="btn-option btn-quality selected" data-quality="ultra">Ultra</button>
+            <button class="btn-option btn-quality" data-quality="high">High</button>
+            <button class="btn-option btn-quality" data-quality="medium">Medium</button>
+          </div>
+        </div>
+
+        <!-- Steering Sensitivity (Adjustable) -->
+        <div class="setting-group" style="grid-column: 1 / -1;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="setting-label">Steering Sensitivity ([ / ] keys)</div>
+            <span class="slider-val-badge" id="val-steer-sens">55%</span>
+          </div>
+          <div class="slider-container">
+            <input type="range" min="20" max="140" step="5" value="55" class="setting-slider" id="slider-steer-sens">
+          </div>
+          <div class="setting-btn-group" style="margin-top: 4px;">
+            <button class="btn-option btn-sens" data-sens="0.35">Smooth (35%)</button>
+            <button class="btn-option btn-sens selected" data-sens="0.55">Normal (55%)</button>
+            <button class="btn-option btn-sens" data-sens="0.80">Sport (80%)</button>
+            <button class="btn-option btn-sens" data-sens="1.10">Direct (110%)</button>
+          </div>
+        </div>
+
+        <!-- Audio & Live Caption Settings -->
+        <div class="setting-group" style="grid-column: 1 / -1; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="setting-label">Sound & Engine Audio</div>
+            <button class="btn-option" id="btn-settings-mute" style="padding: 5px 16px; font-size: 11px;">Mute Audio (M)</button>
+          </div>
+          <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 8px; line-height: 1.5; background: rgba(0,255,200,0.04); border: 1px solid rgba(0,255,200,0.12); padding: 8px 12px; border-radius: 6px;">
+            💡 <strong>Chrome Live Caption tip:</strong> If Chrome's floating "Live Caption" popup ever appears on your screen, click the <strong>✕</strong> on the caption window to dismiss it, or disable it in Chrome via <code>chrome://settings/accessibility</code> &rarr; toggle off <em>Live Caption</em>.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="action-btn primary" id="btn-resume">RESUME RACE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Race Finish Podium Modal -->
+  <div class="modal-backdrop" id="finish-modal">
+    <div class="modal-card">
+      <div class="finish-content">
+        <div class="position-label">RACE COMPLETED</div>
+        <div class="finish-position" id="finish-pos-num">1ST</div>
+        <div style="font-size: 16px; color: #00ffcc; font-weight: 700; letter-spacing: 2px;">VICTORY PODIUM</div>
+
+        <table class="finish-stats-table">
+          <tr>
+            <td>TOTAL RACE TIME</td>
+            <td id="finish-time-val">00:00.00</td>
+          </tr>
+          <tr>
+            <td>FASTEST LAP RECORD</td>
+            <td id="finish-best-val">00:00.00</td>
+          </tr>
+          <tr>
+            <td>DRIFT POINTS BANKED</td>
+            <td id="finish-drift-val">0 PTS</td>
+          </tr>
+        </table>
+
+        <div class="modal-actions" style="width: 100%; justify-content: center;">
+          <button class="action-btn primary" id="btn-restart">RACE AGAIN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile / Touch Controls Overlay -->
+  <div id="touch-controls">
+    <div class="touch-left">
+      <div class="touch-btn" id="btn-steer-left">&#9664;</div>
+      <div class="touch-btn" id="btn-steer-right">&#9654;</div>
+    </div>
+    <div class="touch-right">
+      <div class="touch-btn" id="btn-touch-handbrake" style="font-size:12px;">HANDBRAKE</div>
+      <div class="touch-btn" id="btn-touch-nos" style="font-size:12px; color:#00ffff;">NITRO</div>
+      <div class="touch-pedal pedal-brake" id="btn-pedal-brake">BRAKE</div>
+      <div class="touch-pedal pedal-gas" id="btn-pedal-gas">GAS</div>
+    </div>
+  </div>
+
+  <!-- Libraries: Three.js and Postprocessing Passes -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js" crossorigin="anonymous"></script>
+
+  <!-- Game Scripts -->
+  <script src="js/audio.js"></script>
+  <script src="js/controls.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/car.js"></script>
+  <script src="js/track.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/environment.js"></script>
+  <script src="js/postprocessing.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/main.js"></script>
+
+</body>
+</html>
