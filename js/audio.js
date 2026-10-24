@@ -70,9 +70,23 @@ class SoundEngine {
     if (!this.isInitialized) {
       this.init();
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+    // 'suspended' (never unlocked / paused) or 'interrupted' (Android took audio focus)
+    if (this.ctx && this.ctx.state !== 'running' && this.ctx.state !== 'closed') {
+      this.ctx.resume().catch(() => {});
     }
+  }
+
+  // Called every frame. Browsers only let audio start after the player has interacted with the
+  // page, and Android pauses it again when the app is backgrounded, the screen locks or another
+  // app takes audio focus. Once the player has touched the screen, restart it whenever it stops.
+  keepAlive() {
+    if (!this.ctx || this.ctx.state === 'running' || this.ctx.state === 'closed') return;
+    const activated = !navigator.userActivation || navigator.userActivation.hasBeenActive;
+    if (!activated || document.visibilityState !== 'visible') return;
+    const now = performance.now();
+    if (now - (this.lastResumeAttempt || 0) < 500) return;
+    this.lastResumeAttempt = now;
+    this.ctx.resume().catch(() => {});
   }
 
   // Create procedural white noise buffer

@@ -637,8 +637,13 @@ class GameEngine {
     const unlockAudio = () => {
       if (window.Sound) window.Sound.resume();
     };
-    ['click', 'keydown', 'pointerdown', 'touchstart'].forEach(evt => {
-      window.addEventListener(evt, unlockAudio, { passive: true, once: true });
+    // Only these count as a user activation that may start audio (touchstart/pointerdown do not
+    // on Android); keep listening, since Android can pause audio again later
+    ['touchend', 'pointerup', 'click', 'keydown'].forEach(evt => {
+      window.addEventListener(evt, unlockAudio, { passive: true, capture: true });
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') unlockAudio();
     });
 
     const btnSettings = document.getElementById('btn-settings');
@@ -1074,6 +1079,7 @@ class GameEngine {
 
     // 6. Update Audio Engine
     if (window.Sound) {
+      window.Sound.keepAlive();
       window.Sound.update({
         rpm: this.playerPhysics.rpm,
         throttle: effectiveInput.throttle,
