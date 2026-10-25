@@ -365,15 +365,23 @@ class VehiclePhysics {
       const sign = Math.sign(distFromCenter);
       const penetration = Math.abs(distFromCenter) - barrierLimit;
 
-      // Push back onto track
+      // Push back onto track (wall normal kept flat so the car isn't lifted or pressed down)
       const pushDir = trackInfo.trackRight.clone().multiplyScalar(-sign);
-      this.position.add(pushDir.clone().multiplyScalar(penetration * 1.1));
+      pushDir.y = 0;
+      pushDir.normalize();
+      this.position.addScaledVector(pushDir, penetration);
 
-      // Elastic rebound & velocity damping
       const impactVelocity = this.velocity.dot(pushDir);
       if (impactVelocity < 0) {
-        this.velocity.sub(pushDir.clone().multiplyScalar(impactVelocity * 1.5));
-        this.velocity.multiplyScalar(0.85); // Speed scrub
+        // Keep the slide along the wall; friction takes speed in proportion to how hard the car hit,
+        // so a glancing scrape costs little and only a square-on hit scrubs a lot
+        const tangentVel = this.velocity.clone().addScaledVector(pushDir, -impactVelocity);
+        const tangentSpeed = tangentVel.length();
+        const scrubbed = Math.max(0, tangentSpeed - Math.abs(impactVelocity) * 0.6);
+        tangentVel.multiplyScalar(tangentSpeed > 0 ? scrubbed / tangentSpeed : 0);
+
+        // Barely any bounce: the car stays against the wall rather than springing off it
+        this.velocity.copy(tangentVel).addScaledVector(pushDir, -impactVelocity * 0.05);
 
         // Trigger collision audio & sparks
         if (window.Sound && Math.abs(impactVelocity) > 2.0) {
@@ -381,6 +389,23 @@ class VehiclePhysics {
         }
         if (window.Environment) {
           window.Environment.emitSparks(this.position, this.velocity);
+        }
+      }
+
+      // Rubbing drag while touching the wall (tuned per 60 Hz frame, scaled by dt): ~45% speed lost per second of scraping
+      this.velocity.multiplyScalar(Math.pow(0.99, dt * 60));
+
+      // Ease the nose away from the wall so the car glances off instead of grinding into it
+      const noseIntoWall = -this.forward.dot(pushDir);
+      if (noseIntoWall > 0 && this.velocity.dot(this.forward) > 1.0) {
+        const flatFwd = new THREE.Vector3(this.forward.x, 0, this.forward.z).normalize();
+        const along = flatFwd.clone().addScaledVector(pushDir, -flatFwd.dot(pushDir));
+        if (along.lengthSq() > 1e-4) {
+          along.normalize();
+          const angle = Math.atan2(flatFwd.z * along.x - flatFwd.x * along.z, flatFwd.dot(along));
+          const deltaYaw = angle * Math.min(1.0, 6.0 * dt);
+          this.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), deltaYaw));
+          this.updateVectors();
         }
       }
     }
